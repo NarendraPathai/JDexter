@@ -71,3 +71,17 @@ from the location you have specified.
 Advanced Usages:
 
 Not just this API also allows for dependency resolving on other configuration files. Documentation on it coming soon.
+
+
+How to build?
+=============
+
+Execute the following command after cloning the git repo at your local machine
+
+mvn install
+
+How to configure eclipse workspace?
+====================================
+Execute the following command after cloning the git repo at your local machine
+
+mvn eclipse:eclipse
