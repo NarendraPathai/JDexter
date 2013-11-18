@@ -78,10 +78,10 @@ How to build?
 
 Execute the following command after cloning the git repo at your local machine
 
-mvn install
+`mvn install`
 
 How to configure eclipse workspace?
 ====================================
 Execute the following command after cloning the git repo at your local machine
 
-mvn eclipse:eclipse
+`mvn eclipse:eclipse`
