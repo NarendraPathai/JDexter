@@ -78,7 +78,7 @@ How to build?
 
 Execute the following command after cloning the git repo at your local machine
 
-`mvn install`
+`mvn install -s settings.xml`
 
 How to configure eclipse workspace?
 ====================================
