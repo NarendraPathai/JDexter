@@ -33,6 +33,7 @@ import org.testng.annotations.Test;
 //TODO what happens when an non optional is dependent on an optional configuration? Is that feasible?
 //TODO when optional configuration reading fails in read call for first time, the context again tries to read it on consecutive calls to read.
 //TODO the test cases for optionally depends, dependency will remain null if context fails to read it
+//TODO ordering when a conditional dependency is dependent on other conditional dependency
 
 public class ConfigurationContextUnitTest {
 
