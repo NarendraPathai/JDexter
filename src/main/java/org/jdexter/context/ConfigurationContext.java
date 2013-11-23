@@ -40,15 +40,14 @@ public class ConfigurationContext {
 		try {
 			if(configurationClassToRead == null)
 				throw new IllegalArgumentException("Class to read cannot be null");
-			
-			if(isSaved(configurationClassToRead))
-				return configurationClassToRead.cast(fetch(configurationClassToRead));
 
 			MetaDataCollector metaDataCollector = MetaDataCollector.of(configurationClassToRead);
 
 			Object configurationInstance = readerFactory.getInstanceOf(metaDataCollector.getReader()).read(configurationClassToRead);
 			
 			injectDependencies(configurationInstance, metaDataCollector);
+			
+			readInnerConfigurations(configurationInstance, metaDataCollector);
 
 			save(configurationInstance);
 			
@@ -63,6 +62,14 @@ public class ConfigurationContext {
 			throw new ReadConfigurationException(e.getCause());
 		}catch(Throwable t){
 			throw new ReadConfigurationException(t);
+		}
+	}
+
+	private void readInnerConfigurations(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException {
+		for(Field field : metaDataCollector.getInnerConfigurations()){
+			//expects always a freshly read instance
+			Object innerConfiguration = read(field.getType());
+			injectFieldForcefully(configurationInstance, field, innerConfiguration);
 		}
 	}
 
@@ -111,7 +118,8 @@ public class ConfigurationContext {
 	}
 
 	private void injectDependency(Object configurationInstance, Field field) throws ReadConfigurationException, IllegalArgumentException, IllegalAccessException {
-		Object dependency = read(field.getType());
+		Class<?> dependencyClass = field.getType();
+		Object dependency = isSaved(dependencyClass) ? fetch(dependencyClass) : read(dependencyClass);
 		injectFieldForcefully(configurationInstance, field, dependency);
 	}
 

@@ -8,6 +8,7 @@ import static org.testng.Assert.fail;
 
 import javax.xml.bind.annotation.XmlRootElement;
 
+import org.jdexter.annotation.Conditional;
 import org.jdexter.annotation.Configuration;
 import org.jdexter.annotation.Decision;
 import org.jdexter.annotation.Depends;
@@ -20,9 +21,18 @@ import org.jdexter.exception.ReadConfigurationException;
 import org.jdexter.reader.JAXBReader;
 import org.jdexter.reader.Reader;
 import org.jdexter.util.ReflectionUtil;
+import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+
+//TODO Reader class is inner class with non static
+//TODO PostRead should not be called when pre read throws an exception
+//TODO before the call to decision callback the other dependencies should be injected
+//TODO what happens when an non optional is dependent on an optional configuration? Is that feasible?
+//TODO when optional configuration reading fails in read call for first time, the context again tries to read it on consecutive calls to read.
+//TODO the test cases for optionally depends, dependency will remain null if context fails to read it
 
 public class ConfigurationContextUnitTest {
 
@@ -160,19 +170,16 @@ public class ConfigurationContextUnitTest {
 		configurationContext.read(TestCompositeConfigurationClassWithDefaultReader.class);
 	}
 	
-	@Test(invocationCount = 2)
-	public void testRead_ShouldReturnSameConfigurationInstance_WhenSameClassIsPassed() throws ReadConfigurationException{
-		TestConfigurationClass instance1 = configurationContext.read(TestConfigurationClass.class);
-		TestConfigurationClass instance2 = configurationContext.read(TestConfigurationClass.class);
-		assertTrue(instance1 == instance2);
+	@Test
+	public void testRead_ShouldInjectAlreadyReadObjectWhenRequiredAsDependency() throws ReadConfigurationException{
+		configurationContext.read(TestCompositeConfigurationWhichUsesSavedInstance.class);
 	}
-	
 	/** --------------------------- Supporting methods and classes ------------------------ **/
 	
 	@Configuration
 	public static class TestCompositeConfigurationWhichUsesSavedInstance{
 		@Depends private TestConfigurationClass dependency1;
-		@Depends private TestCompositeConfigurationClassWithDefaultReader dependency2;
+		@Configuration private TestConfigurationClassUsesDependency dependency2;
 		
 		@PostRead
 		public void verify(){
@@ -180,12 +187,17 @@ public class ConfigurationContextUnitTest {
 		}
 	}
 	
+	@Configuration
+	public static class TestConfigurationClassUsesDependency{
+		@Depends TestConfigurationClass dependency1;
+	}
+	
 	/* 
 	 * Tests whether the post read of the dependent classes are called before the container class
 	 */
 	@Configuration
 	public static class TestCompositeConfigurationPostReadLifecycleInvocationChain{
-		@Depends private TestConfigurationClass dependency1;
+		@Configuration private TestConfigurationClass dependency1;
 		
 		@PostRead
 		public void verify(){
@@ -694,12 +706,9 @@ public class ConfigurationContextUnitTest {
 	}
 	
 	
-	//TODO Reader class is inner class with non static
-	//TODO PostRead should not be called when pre read throws an exception
-	
 	
 	@Test
-	public void testRead_ShouldReadOptionalDependentConfiguration_WhenDecisionIsTrue() throws ReadConfigurationException{
+	public void testRead_ShouldInjectOptionallyDependentConfiguration_WhenReadProperly() throws ReadConfigurationException{
 		configurationContext.read(TestCompositeConfigurationWithOneOptionalDependencies.class);
 	}
 	
@@ -708,8 +717,12 @@ public class ConfigurationContextUnitTest {
 		configurationContext.read(TestCompositeConfigurationWithOneOptionalDependencyAndFalseDecision.class);
 	}
 	
-	//TODO before the call to decision callback the other dependencies should be injected
-	//TODO what happens when an non optional is dependent on an optional configuration? Is that feasible?
+	@Test
+	public void testRead_TwoConsecutiveCallsToReadShouldNotReturnSameInstance() throws ReadConfigurationException{
+		Object instannce1 = configurationContext.read(TestConfigurationClass.class);
+		Object instannce2 = configurationContext.read(TestConfigurationClass.class);
+		Assert.assertNotEquals(instannce1, instannce2);
+	}
 	
 	@Configuration
 	public static class TestCompositeConfigurationWithOneOptionalDependencies{
@@ -774,5 +787,53 @@ public class ConfigurationContextUnitTest {
 		public boolean eligible(Class<?> classToRead) throws Exception{
 			throw new Error();
 		}
+	}
+	
+	
+	/*
+	 * The use of conditionals
+	 */
+	
+	@Test
+	public void testRead_ShouldReadConditionalDependenciesWhenDecisionIsTrue() throws ReadConfigurationException{
+		configurationContext.read(MainConfiguration.class);
+	}
+	
+	@Configuration
+	public static class ServiceConfiguration{
+		@Depends private TestConfigurationClass dependency;
+		
+		public boolean isEnabled(){
+			return false;
+		}
+		
+		@PostRead
+		public void verify(){
+			assertNotNull(dependency);
+		}
+	}
+	
+	@Configuration
+	public static class SomeServiceConfiguration{
+		
+	}
+	
+	@Configuration
+	public static class MainConfiguration{
+		
+		@Configuration private ServiceConfiguration sc;
+		@Configuration @Conditional private SomeServiceConfiguration ssc;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			return true;
+		}
+		
+		@PostRead
+		public void verify(){
+			assertNotNull(sc);
+			assertNotNull(ssc);
+		}
+		
 	}
 }

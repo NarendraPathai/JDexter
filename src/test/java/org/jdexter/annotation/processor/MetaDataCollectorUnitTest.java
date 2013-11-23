@@ -8,11 +8,12 @@ import java.lang.reflect.Field;
 import java.util.Iterator;
 import java.util.Set;
 
+import org.jdexter.annotation.Conditional;
 import org.jdexter.annotation.Configuration;
 import org.jdexter.annotation.Decision;
 import org.jdexter.annotation.Depends;
 import org.jdexter.annotation.Optional;
-import org.jdexter.annotation.processor.MetaDataCollector;
+import org.jdexter.context.ConfigurationContextUnitTest.MainConfiguration;
 import org.jdexter.context.ConfigurationContextUnitTest.TestCompositeConfigurationWithOneOptionalDependencies;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClass;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClass1;
@@ -22,6 +23,7 @@ import org.jdexter.context.ConfigurationContextUnitTest.TestReader;
 import org.jdexter.context.ConfigurationContextUnitTest.TestRequiresDependency;
 import org.jdexter.reader.DefaultReader;
 import org.jdexter.reader.Reader;
+import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -152,8 +154,8 @@ public class MetaDataCollectorUnitTest {
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
-	public void testOf_ShouldThrowIllegalArgumentException_WhenConfigurationClassWithOptionalDependencyAndNoDecisionMethodIsPassed(){
-		MetaDataCollector.of(TestCompositeConfigurationWithOptionalDependencyAndNoDecisionMethod.class);
+	public void testOf_ShouldThrowIllegalArgumentException_WhenConfigurationClassWithConditionalConfigurationAndNoDecisionMethodIsPassed(){
+		MetaDataCollector.of(TestCompositeConfigurationWithConditionalConfigurationAndNoDecisionMethod.class);
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class}, dataProvider = "dataFor_testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated")
@@ -161,14 +163,38 @@ public class MetaDataCollectorUnitTest {
 		MetaDataCollector.of(configurationClass);
 	}
 	
+	@Test
+	public void testOf_ShouldReturnEmptySetOfInnerConfigurationsForSimpleConfigurationClass(){
+		MetaDataCollector mdc = MetaDataCollector.of(TestConfigurationClass.class);
+		Assert.assertTrue(mdc.getInnerConfigurations().isEmpty());
+	}
+	
+	@Test
+	public void testOf_ShouldReturnEmptySetOfConditionalInnerConfigurationsForSimpleConfigurationClass(){
+		MetaDataCollector mdc = MetaDataCollector.of(TestConfigurationClass.class);
+		Assert.assertTrue(mdc.getConditionalConfigurations().isEmpty());
+	}
+	
+	@Test
+	public void testOf_ShouldReturnSetOfInnerConfigurationsForCompositeConfigurationClass(){
+		MetaDataCollector mdc = MetaDataCollector.of(MainConfiguration.class);
+		assertEquals(mdc.getInnerConfigurations().size(), 2);
+	}
+	
+	@Test
+	public void testOf_ShouldReturnSetOfConditionalInnerConfigurationsForCompositeConfigurationClass(){
+		MetaDataCollector mdc = MetaDataCollector.of(MainConfiguration.class);
+		assertEquals(mdc.getConditionalConfigurations().size(), 1);
+	}
+	
 	@DataProvider 
 	public static Object[][] dataFor_testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated(){
 		return new Object[][]{
-				{TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodReturningNonBooleanValue.class},
-				{TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodReturningVoid.class},
-				{TestCompositeConfigurationWithOptionalDependencyAndNoDecisionMethod.class},
-				{TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodWithBlankParameters.class},
-				{TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodWithMoreThanOneParameters.class}
+				{TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodReturningNonBooleanValue.class},
+				{TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodReturningVoid.class},
+				{TestCompositeConfigurationWithConditionalConfigurationAndNoDecisionMethod.class},
+				{TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodWithBlankParameters.class},
+				{TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodWithMoreThanOneParameters.class}
 		};
 	}
 	
@@ -178,18 +204,13 @@ public class MetaDataCollectorUnitTest {
 		@Depends TestConfigurationClass dependency1;
 		@Depends @Optional TestConfigurationClass1 dependency2;
 		@Depends @Optional TestConfigurationClass1 dependency3;
-		
-		@Decision
-		public boolean eligible(Class<?> classToRead){
-			return false;
-		}
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodReturningNonBooleanValue{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
-		@Depends @Optional TestConfigurationClass1 dependency3;
+	public static class TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodReturningNonBooleanValue{
+		@Configuration TestConfigurationClass dependency1;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency3;
 		
 		@Decision
 		public Object eligible(Class<?> classToRead){
@@ -198,10 +219,10 @@ public class MetaDataCollectorUnitTest {
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodReturningVoid{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
-		@Depends @Optional TestConfigurationClass1 dependency3;
+	public static class TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodReturningVoid{
+		@Configuration TestConfigurationClass dependency1;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency3;
 		
 		@Decision
 		public void eligible(Class<?> classToRead){
@@ -209,10 +230,10 @@ public class MetaDataCollectorUnitTest {
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodWithBlankParameters{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
-		@Depends @Optional TestConfigurationClass1 dependency3;
+	public static class TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodWithBlankParameters{
+		@Configuration TestConfigurationClass dependency1;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency3;
 		
 		@Decision
 		public void eligible(Class<?> classToRead){
@@ -220,10 +241,10 @@ public class MetaDataCollectorUnitTest {
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOptionalDependenciesAndDecisionMethodWithMoreThanOneParameters{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
-		@Depends @Optional TestConfigurationClass1 dependency3;
+	public static class TestCompositeConfigurationWithConditionalConfigurationAndDecisionMethodWithMoreThanOneParameters{
+		@Configuration TestConfigurationClass dependency1;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency3;
 		
 		@Decision
 		public void eligible(Class<?> classToRead){
@@ -231,10 +252,10 @@ public class MetaDataCollectorUnitTest {
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOptionalDependencyAndNoDecisionMethod{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
-		@Depends @Optional TestConfigurationClass1 dependency3;
+	public static class TestCompositeConfigurationWithConditionalConfigurationAndNoDecisionMethod{
+		@Configuration TestConfigurationClass dependency1;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
+		@Configuration TestConfigurationClass1 dependency3;
 	}
 	
 	@DataProvider

@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Set;
 
+import org.jdexter.annotation.Conditional;
 import org.jdexter.annotation.Configuration;
 import org.jdexter.annotation.Decision;
 import org.jdexter.annotation.Depends;
@@ -18,6 +19,8 @@ public class MetaDataCollector {
 	private Set<Field> requiredConfigurations;
 	private Set<Field> optionallyRequiredConfigurations;
 	private Method decisionMethod;
+	private Set<Field> innerConfigurations;
+	private Set<Field> conditionalCongurations;
 	
 	public MetaDataCollector(Class<?> clazz) {
 		this.clazz = clazz;
@@ -32,28 +35,43 @@ public class MetaDataCollector {
 			throw new IllegalArgumentException("Class: " + clazz.getName() + " does not contain annotation: " + Configuration.class.getName());
 		
 		extractReader(configurationProperties);
-		extractDependenciesMetaData();
+		
+		extractDependencies();
+		
+		extractInnerConfigurations();
+		
+		extractDecisionMethod();
 		
 		validate();
 	}
 
+	@SuppressWarnings("unchecked")
+	private void extractDecisionMethod() {
+		Set<Method> decisionMethods = ReflectionUtils.getAllMethods(clazz, ReflectionUtils.withAnnotation(Decision.class), 
+				ReflectionUtils.withReturnType(boolean.class), 
+				ReflectionUtils.withParameters(Class.class));
+		
+		if(!decisionMethods.isEmpty())
+			decisionMethod = (Method) decisionMethods.toArray()[0];
+	}
+
+	@SuppressWarnings("unchecked")
+	private void extractInnerConfigurations() {
+		innerConfigurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Configuration.class));
+		conditionalCongurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Configuration.class), ReflectionUtils.withAnnotation(Conditional.class));
+	}
+
 	private void validate() {
-		if(optionallyRequiredConfigurations.size() > 0 
+		if(conditionalCongurations.size() > 0 
 				&& decisionMethod == null)
 			throw new IllegalArgumentException("No boolean returning method accepting Class<?> as parameter annotated with @Decision");
 	}
 
 	@SuppressWarnings("unchecked")
-	public void extractDependenciesMetaData() {
+	public void extractDependencies() {
 		requiredConfigurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Depends.class));
 		optionallyRequiredConfigurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Depends.class), ReflectionUtils.withAnnotation(Optional.class));
 		requiredConfigurations.removeAll(optionallyRequiredConfigurations);
-		
-		Set<Method> decisionMethods = ReflectionUtils.getAllMethods(clazz, ReflectionUtils.withAnnotation(Decision.class), 
-																			ReflectionUtils.withReturnType(boolean.class), 
-																			ReflectionUtils.withParameters(Class.class));
-		if(!decisionMethods.isEmpty())
-			decisionMethod = (Method) decisionMethods.toArray()[0];
 	}
 
 	public void extractReader(Configuration configurationProperties) {
@@ -80,5 +98,13 @@ public class MetaDataCollector {
 	
 	public Method getDecisionMethod(){
 		return decisionMethod;
+	}
+
+	public Set<Field> getInnerConfigurations() {
+		return innerConfigurations;
+	}
+
+	public Set<Field> getConditionalConfigurations() {
+		return conditionalCongurations;
 	}
 }
