@@ -178,7 +178,7 @@ public class MetaDataCollectorUnitTest {
 	@Test
 	public void testOf_ShouldReturnSetOfInnerConfigurationsForCompositeConfigurationClass(){
 		MetaDataCollector mdc = MetaDataCollector.of(MainConfiguration.class);
-		assertEquals(mdc.getInnerConfigurations().size(), 2);
+		assertEquals(mdc.getInnerConfigurations().size(), 1);
 	}
 	
 	@Test

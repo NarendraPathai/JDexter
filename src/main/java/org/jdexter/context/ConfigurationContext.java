@@ -16,7 +16,7 @@ import org.jdexter.reader.ReaderFactory;
 import org.jdexter.reader.exception.ReaderInstantiationException;
 import org.jdexter.util.ReflectionUtil;
 
-
+//TODO on a second thought I think it won't be advisable to catch all the throwable.
 public class ConfigurationContext {
 
 	private ReaderFactory readerFactory;
@@ -65,9 +65,18 @@ public class ConfigurationContext {
 		}
 	}
 
-	private void readInnerConfigurations(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException {
+	private void readInnerConfigurations(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException, InvocationTargetException {
 		for(Field field : metaDataCollector.getInnerConfigurations()){
 			//expects always a freshly read instance
+			Object innerConfiguration = read(field.getType());
+			injectFieldForcefully(configurationInstance, field, innerConfiguration);
+		}
+		
+		for(Field field : metaDataCollector.getConditionalConfigurations()){
+			if(!decision(metaDataCollector, configurationInstance, field)){
+				continue;
+			}
+			
 			Object innerConfiguration = read(field.getType());
 			injectFieldForcefully(configurationInstance, field, innerConfiguration);
 		}
@@ -99,10 +108,19 @@ public class ConfigurationContext {
 		injectOptionallyRequiredDependencies(configurationInstance, metaDataCollector);
 	}
 
+	public void injectRequiredDependencies(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException {
+		for(Field field : metaDataCollector.getRequiredConfigurations()){
+			injectDependency(configurationInstance, field);
+		}
+	}
+	
 	private void injectOptionallyRequiredDependencies(Object configurationInstance, MetaDataCollector metaDataCollector) throws IllegalArgumentException, ReadConfigurationException, IllegalAccessException, InvocationTargetException {
 		for(Field field : metaDataCollector.getOptionallyRequiredConfigurations()){
-			if(decision(metaDataCollector, configurationInstance, field)){
+			try{
 				injectDependency(configurationInstance, field);
+			}catch (ReadConfigurationException ex) {
+				//eating away the exception silently as dependency is optional
+				ex.printStackTrace();
 			}
 		}
 	}
@@ -111,11 +129,6 @@ public class ConfigurationContext {
 		return (Boolean) ReflectionUtil.invokeMethod(metaDataCollector.getDecisionMethod(), configurationInstance, field.getType());
 	}
 
-	public void injectRequiredDependencies(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException {
-		for(Field field : metaDataCollector.getRequiredConfigurations()){
-			injectDependency(configurationInstance, field);
-		}
-	}
 
 	private void injectDependency(Object configurationInstance, Field field) throws ReadConfigurationException, IllegalArgumentException, IllegalAccessException {
 		Class<?> dependencyClass = field.getType();

@@ -29,11 +29,11 @@ import org.testng.annotations.Test;
 
 //TODO Reader class is inner class with non static
 //TODO PostRead should not be called when pre read throws an exception
-//TODO before the call to decision callback the other dependencies should be injected
 //TODO what happens when an non optional is dependent on an optional configuration? Is that feasible?
 //TODO when optional configuration reading fails in read call for first time, the context again tries to read it on consecutive calls to read.
 //TODO the test cases for optionally depends, dependency will remain null if context fails to read it
 //TODO ordering when a conditional dependency is dependent on other conditional dependency
+//TODO an optional dependency which may fail while reading should not throw exception and eat it away
 
 public class ConfigurationContextUnitTest {
 
@@ -175,7 +175,54 @@ public class ConfigurationContextUnitTest {
 	public void testRead_ShouldInjectAlreadyReadObjectWhenRequiredAsDependency() throws ReadConfigurationException{
 		configurationContext.read(TestCompositeConfigurationWhichUsesSavedInstance.class);
 	}
+	
+	@Test
+	public void testRead_ShouldSkipExceptionWhenErrorInReadingOptionalDependency() throws ReadConfigurationException{
+		configurationContext.read(TestOptionalDependencyWhichThrowsCheckedException.class);
+	}
+	
+	@Test
+	public void testRead_UnconditionalConfigurationAreReadPriorToDecisionCallback() throws ReadConfigurationException{
+		configurationContext.read(TestUnConditionalConfigurationIsInjectedBeforeConditionalConfiguration.class);
+	}
+	
+	@Test
+	public void testRead_DependenciesShouldBeInjectedPriorToDecisionCallback() throws ReadConfigurationException{
+		configurationContext.read(TestDependenciesAreInjectedBeforeDecisionMethodCallback.class);
+	}
+	
 	/** --------------------------- Supporting methods and classes ------------------------ **/
+	
+	
+	/**
+	 * Tests that unconditional should be injected before conditional configurations
+	 */
+	@Configuration
+	public static class TestUnConditionalConfigurationIsInjectedBeforeConditionalConfiguration{
+		@Configuration private TestConfigurationClass tcc;
+		@Configuration @Conditional private TestConfigurationClass tcc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			assertNotNull(tcc);
+			return true;
+		}
+	}
+	
+	@Configuration
+	public static class TestDependenciesAreInjectedBeforeDecisionMethodCallback{
+		@Depends private TestConfigurationClass dependency;
+		@Depends @Optional TestConfigurationClass dependency1;
+		
+		@Conditional @Configuration private TestConfigurationClass tcc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			assertNotNull(dependency);
+			assertNotNull(dependency1);
+			return true;
+		}
+	}
 	
 	@Configuration
 	public static class TestCompositeConfigurationWhichUsesSavedInstance{
@@ -257,7 +304,8 @@ public class ConfigurationContextUnitTest {
 				{TestConfigurationClassWithReaderThrowingError.class,							Error.class},
 				{TestCompositeConfigurationDecisionMethodThrowingCheckedException.class,		Exception.class},
 				{TestCompositeConfigurationDecisionMethodThrowingUncheckedException.class,		RuntimeException.class},
-				{TestCompositeConfigurationDecisionMethodThrowingError.class,					Error.class}
+				{TestCompositeConfigurationDecisionMethodThrowingError.class,					Error.class},
+				{TestCompositeConfigurationWhoseInnerConfigruationThrowsCheckedException.class, Exception.class}
 		};
 	}
 
@@ -302,6 +350,29 @@ public class ConfigurationContextUnitTest {
 	@Configuration(readWith = TestReader.class)
 	public static class TestRequiresDependencyWhichThrowsCheckedException{
 		@Depends private TestConfigurationClassWithPostLifeCycleMethodThrowsCheckedException dependency;
+		
+		@PostRead
+		public void postRead(){
+			fail("Post read lifecycle event called even after read failure of dependent configuration");
+		}
+	}
+	
+	@Configuration(readWith = TestReader.class)
+	public static class TestOptionalDependencyWhichThrowsCheckedException{
+		@Depends @Optional private TestConfigurationClassWithPostLifeCycleMethodThrowsCheckedException dependency;
+		
+		public boolean postReadCalled = false;
+		
+		@PostRead
+		public void postRead(){
+			postReadCalled = true;
+			assertNull(dependency);
+		}
+	}
+	
+	@Configuration(readWith = TestReader.class)
+	public static class TestCompositeConfigurationWhoseInnerConfigruationThrowsCheckedException{
+		@Configuration TestConfigurationClassWhoseDefaultConstructorThrowsCheckedException inner;
 		
 		public void postRead(){
 			fail("Post read lifecycle event called even after read failure of dependent configuration");
@@ -715,7 +786,7 @@ public class ConfigurationContextUnitTest {
 	
 	@Test
 	public void testRead_ShouldSkipReadingOptionalDependentConfiguration_WhenDecisionIsFalse() throws ReadConfigurationException{
-		configurationContext.read(TestCompositeConfigurationWithOneOptionalDependencyAndFalseDecision.class);
+		configurationContext.read(TestCompositeConfigurationWithOneConditionalConfigurationAndFalseDecision.class);
 	}
 	
 	@Test
@@ -742,9 +813,8 @@ public class ConfigurationContextUnitTest {
 	}
 	
 	@Configuration
-	public static class TestCompositeConfigurationWithOneOptionalDependencyAndFalseDecision{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
+	public static class TestCompositeConfigurationWithOneConditionalConfigurationAndFalseDecision{
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
 		
 		@Decision
 		public boolean eligible(Class<?> classToRead){
@@ -759,19 +829,18 @@ public class ConfigurationContextUnitTest {
 	
 	@Configuration
 	public static class TestCompositeConfigurationDecisionMethodThrowingCheckedException{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
 		
 		@Decision
-		public boolean eligible(Class<?> classToRead) throws Exception{
+		public boolean decision(Class<?> config) throws Exception{
 			throw new Exception();
 		}
+		
 	}
 	
 	@Configuration
 	public static class TestCompositeConfigurationDecisionMethodThrowingUncheckedException{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
+		@Configuration @Conditional TestConfigurationClass1 dependency2;
 		
 		@Decision
 		public boolean eligible(Class<?> classToRead) throws Exception{
@@ -781,8 +850,7 @@ public class ConfigurationContextUnitTest {
 	
 	@Configuration
 	public static class TestCompositeConfigurationDecisionMethodThrowingError{
-		@Depends TestConfigurationClass dependency1;
-		@Depends @Optional TestConfigurationClass1 dependency2;
+		@Conditional @Configuration TestConfigurationClass1 dependency2;
 		
 		@Decision
 		public boolean eligible(Class<?> classToRead) throws Exception{

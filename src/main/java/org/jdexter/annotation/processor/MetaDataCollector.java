@@ -59,6 +59,7 @@ public class MetaDataCollector {
 	private void extractInnerConfigurations() {
 		innerConfigurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Configuration.class));
 		conditionalCongurations = ReflectionUtils.getAllFields(clazz, ReflectionUtils.withAnnotation(Configuration.class), ReflectionUtils.withAnnotation(Conditional.class));
+		innerConfigurations.removeAll(conditionalCongurations);
 	}
 
 	private void validate() {
