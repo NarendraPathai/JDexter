@@ -27,31 +27,31 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class MetaDataCollectorUnitTest {
+public class AnnotationMetaDataCollectorUnitTest {
 
 	@Test
 	public void testOf_ShouldReturnNonNullInstanceOfMetaDataCollector_WhenConfigurationClassPassedContainsConfigurationPropertiesAnnotation(){
-		assertNotNull(MetaDataCollector.of(TestConfigurationClass.class));
+		assertNotNull(AnnotationMetaDataCollector.of(TestConfigurationClass.class));
 	}
 	
 	@Test
 	public void testOf_ShouldReturnNonNullInstanceOfMetaDataCollector_WhenConfigurationClassPassedContainsConfigurationPropertiesWithDefaultReader(){
-		assertNotNull(MetaDataCollector.of(TestConfigurationClassWithNoReaderSpecified.class));
+		assertNotNull(AnnotationMetaDataCollector.of(TestConfigurationClassWithNoReaderSpecified.class));
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
 	public void testOf_ShouldThrowIllegalArgumentException_WhenConfigurationClassIsNotAnnotatedWithConfigurationProperties(){
-		MetaDataCollector.of(TestConfigurationClassWithoutConfigurationProperties.class);
+		AnnotationMetaDataCollector.of(TestConfigurationClassWithoutConfigurationProperties.class);
 	}
 	
 	@Test
 	public void testOf_ShouldReturnNonNullInstance_WhenConfigurationPropertiesAnnotationIsOnAPrivateConfigurationClass(){
-		assertNotNull(MetaDataCollector.of(TestConfigurationClassWithPrivateAccess.class));
+		assertNotNull(AnnotationMetaDataCollector.of(TestConfigurationClassWithPrivateAccess.class));
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
 	public void testCollect_ShouldThrowIllegalArgumentException_WhenConfigurationClassIsNotAnnotatedWithConfigurationProperties(){
-		MetaDataCollector mdc = new MetaDataCollector(TestConfigurationClassWithoutConfigurationProperties.class);
+		AnnotationMetaDataCollector mdc = new AnnotationMetaDataCollector(TestConfigurationClassWithoutConfigurationProperties.class);
 		mdc.collect();
 	}
 	
@@ -61,7 +61,7 @@ public class MetaDataCollectorUnitTest {
 			dataProvider = "dataFor_testGetReader_ShouldReturnProperReaderClass_WhenConfigurationPropertiesAnnotationIsFound")
 	public void testGetReader_ShouldReturnNonNullReaderClass_WhenConfigurationPropertiesAnnotationIsFound(Class<?> configurationClass,
 			Class<? extends Reader> reader){
-		assertNotNull(MetaDataCollector.of(configurationClass).getReader());
+		assertNotNull(AnnotationMetaDataCollector.of(configurationClass).getReader());
 	}
 	
 	@Test(dependsOnMethods = {
@@ -70,60 +70,52 @@ public class MetaDataCollectorUnitTest {
 			dataProvider = "dataFor_testGetReader_ShouldReturnProperReaderClass_WhenConfigurationPropertiesAnnotationIsFound")
 	public void testGetReader_ShouldReturnExactReaderClass_WhenConfigurationPropertiesAnnotationIsFound(Class<?> configurationClass,
 			Class<? extends Reader> reader){
-		assertEquals(MetaDataCollector.of(configurationClass).getReader(),reader);
+		assertEquals(AnnotationMetaDataCollector.of(configurationClass).getReader(),reader);
 	}
 	
 	private static final int ANY = 5;
 	
 	@Test(invocationCount = ANY)
 	public void testOf_ShouldReturnNewInstanceOnEachInvocation_WhenSameConfigurationClassIsPassed(){
-		assertNotEquals(MetaDataCollector.of(TestConfigurationClass.class), MetaDataCollector.of(TestConfigurationClass.class));
+		assertNotEquals(AnnotationMetaDataCollector.of(TestConfigurationClass.class), AnnotationMetaDataCollector.of(TestConfigurationClass.class));
 	}
 	
 	@Test(invocationCount = ANY)
 	public void testOf_ShouldReturnNewInstanceOnEachInvocation_WhenDifferentConfigurationClassIsPassed(){
-		assertNotEquals(MetaDataCollector.of(TestConfigurationClass.class), MetaDataCollector.of(TestConfigurationClass1.class));
+		assertNotEquals(AnnotationMetaDataCollector.of(TestConfigurationClass.class), AnnotationMetaDataCollector.of(TestConfigurationClass1.class));
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
 	public void testCollect_ShouldThrowIllegalArgumentException_WhenNullConfigurationClassIsPassed(){
-		MetaDataCollector mdc = new MetaDataCollector(null);
+		AnnotationMetaDataCollector mdc = new AnnotationMetaDataCollector(null);
 		mdc.collect();
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
 	public void testOf_ShouldThrowIllegalArgumentException_WhenNullConfigurationClassIsPassedAsParameter(){
-		MetaDataCollector.of(null);
+		AnnotationMetaDataCollector.of(null);
 	}
+	
 	
 	@Test
-	public void testOf_ShouldReturnSetWithProperSize_WhenConfigurationClassWithPrivateDependentFields(){
-		MetaDataCollector collector = MetaDataCollector.of(TestRequiresDependency.class);
-		assertEquals(1, collector.getRequiredConfigurations().size());
+	public void testOf_ShouldExtractTheDependencies(){
+		MetaDataCollector collector = AnnotationMetaDataCollector.of(TestRequiresDependency.class);
+		assertEquals(1, collector.getDependencies().size());
+		
+		collector = AnnotationMetaDataCollector.of(TestRequiresDependencyWithPublicAccess.class);
+		assertEquals(1, collector.getDependencies().size());
+		
+		collector = AnnotationMetaDataCollector.of(TestRequiresDependencyWithProtectedAccess.class);
+		assertEquals(1, collector.getDependencies().size());
+		
+		collector = AnnotationMetaDataCollector.of(TestRequiresDependencyWithDefaultAccess.class);
+		assertEquals(1, collector.getDependencies().size());
 	}
-	
-	@Test
-	public void testOf_ShouldReturnSetWithProperSize_WhenConfigurationClassWithPublicDependentFields(){
-		MetaDataCollector collector = MetaDataCollector.of(TestRequiresDependencyWithPublicAccess.class);
-		assertEquals(1, collector.getRequiredConfigurations().size());
-	}
-	
-	@Test
-	public void testOf_ShouldReturnSetWithProperSize_WhenConfigurationClassWithProtectedDependentFields(){
-		MetaDataCollector collector = MetaDataCollector.of(TestRequiresDependencyWithProtectedAccess.class);
-		assertEquals(1, collector.getRequiredConfigurations().size());
-	}
-	
-	@Test
-	public void testOf_ShouldReturnSetWithProperSize_WhenConfigurationClassWithDefaultAccessDependentFields(){
-		MetaDataCollector collector = MetaDataCollector.of(TestRequiresDependencyWithDefaultAccess.class);
-		assertEquals(1, collector.getRequiredConfigurations().size());
-	}
-	
+		
 	@Test
 	public void testOf_ShouldReturnSetWithProperFields_WhenConfigurationClassWithPrivateDependentFields(){
-		MetaDataCollector collector = MetaDataCollector.of(TestRequiresDependency.class);
-		Set<Field> requiredConfiguration = collector.getRequiredConfigurations();
+		MetaDataCollector collector = AnnotationMetaDataCollector.of(TestRequiresDependency.class);
+		Set<Field> requiredConfiguration = collector.getDependencies();
 		Iterator<Field> itr = requiredConfiguration.iterator();
 		while(itr.hasNext()){
 			Field f = itr.next();
@@ -137,55 +129,60 @@ public class MetaDataCollectorUnitTest {
 
 	@Test
 	public void testOf_ShouldReadTheOptionalDependencies(){
-		MetaDataCollector collector = MetaDataCollector.of(TestCompositeConfigurationWithOneOptionalDependencies.class);
-		Set<Field> optionallyRequiredConfigurations = collector.getOptionallyRequiredConfigurations();
+		MetaDataCollector collector = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
+		Set<Field> optionallyRequiredConfigurations = collector.getOptionalDependencies();
+		assertEquals(optionallyRequiredConfigurations.size(), 0);
+		
+		collector = AnnotationMetaDataCollector.of(TestCompositeConfigurationWithOneOptionalDependencies.class);
+		optionallyRequiredConfigurations = collector.getOptionalDependencies();
 		assertEquals(optionallyRequiredConfigurations.size(), 1);
 		
-		collector = MetaDataCollector.of(TestCompositeConfigurationWithTwoOptionalDependencies.class);
-		optionallyRequiredConfigurations = collector.getOptionallyRequiredConfigurations();
+		collector = AnnotationMetaDataCollector.of(TestCompositeConfigurationWithTwoOptionalDependencies.class);
+		optionallyRequiredConfigurations = collector.getOptionalDependencies();
 		assertEquals(optionallyRequiredConfigurations.size(), 2);
-	}
-	
-	@Test
-	public void testOf_ShouldNotThrowAnyException_WhenConfigurationClassWithNoOptionalDependencyIsPassed(){
-		MetaDataCollector collector = MetaDataCollector.of(TestConfigurationClass.class);
-		Set<Field> optionallyRequiredConfigurations = collector.getOptionallyRequiredConfigurations();
-		assertEquals(optionallyRequiredConfigurations.size(), 0);
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class})
 	public void testOf_ShouldThrowIllegalArgumentException_WhenConfigurationClassWithConditionalConfigurationAndNoDecisionMethodIsPassed(){
-		MetaDataCollector.of(TestCompositeConfigurationWithConditionalConfigurationAndNoDecisionMethod.class);
+		AnnotationMetaDataCollector.of(TestCompositeConfigurationWithConditionalConfigurationAndNoDecisionMethod.class);
 	}
 	
 	@Test(expectedExceptions = {IllegalArgumentException.class}, dataProvider = "dataFor_testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated")
 	public void testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated(Class<?> configurationClass){
-		MetaDataCollector.of(configurationClass);
+		AnnotationMetaDataCollector.of(configurationClass);
 	}
 	
 	@Test
 	public void testOf_ShouldReturnEmptySetOfInnerConfigurationsForSimpleConfigurationClass(){
-		MetaDataCollector mdc = MetaDataCollector.of(TestConfigurationClass.class);
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
 		Assert.assertTrue(mdc.getInnerConfigurations().isEmpty());
 	}
 	
 	@Test
 	public void testOf_ShouldReturnEmptySetOfConditionalInnerConfigurationsForSimpleConfigurationClass(){
-		MetaDataCollector mdc = MetaDataCollector.of(TestConfigurationClass.class);
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
 		Assert.assertTrue(mdc.getConditionalConfigurations().isEmpty());
 	}
 	
 	@Test
 	public void testOf_ShouldReturnSetOfInnerConfigurationsForCompositeConfigurationClass(){
-		MetaDataCollector mdc = MetaDataCollector.of(MainConfiguration.class);
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
+		assertEquals(mdc.getInnerConfigurations().size(), 0);
+		
+		mdc = AnnotationMetaDataCollector.of(MainConfiguration.class);
 		assertEquals(mdc.getInnerConfigurations().size(), 1);
 	}
 	
 	@Test
 	public void testOf_ShouldReturnSetOfConditionalInnerConfigurationsForCompositeConfigurationClass(){
-		MetaDataCollector mdc = MetaDataCollector.of(MainConfiguration.class);
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
+		assertEquals(mdc.getConditionalConfigurations().size(), 0);
+		
+		mdc = AnnotationMetaDataCollector.of(MainConfiguration.class);
 		assertEquals(mdc.getConditionalConfigurations().size(), 1);
 	}
+	
+	
 	
 	@DataProvider 
 	public static Object[][] dataFor_testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated(){

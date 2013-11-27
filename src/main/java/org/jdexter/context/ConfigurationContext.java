@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.jdexter.annotation.PostRead;
+import org.jdexter.annotation.processor.CachingAnnotationMetaDataCollectorFactory;
 import org.jdexter.annotation.processor.MetaDataCollector;
 import org.jdexter.exception.ReadConfigurationException;
 import org.jdexter.reader.Reader;
@@ -18,12 +19,14 @@ import org.jdexter.util.ReflectionUtil;
 
 //TODO on a second thought I think it won't be advisable to catch all the throwable.
 public class ConfigurationContext {
-
+	
+	private CachingAnnotationMetaDataCollectorFactory collectorFactory;
 	private ReaderFactory readerFactory;
-
+	
 	private Map<Class<?>,Object> readConfigurations;
 	
 	public ConfigurationContext() {
+		collectorFactory = new CachingAnnotationMetaDataCollectorFactory();
 		readerFactory = new ReaderFactory();
 		readConfigurations = new ConcurrentHashMap<Class<?>, Object>();
 	}
@@ -41,7 +44,7 @@ public class ConfigurationContext {
 			if(configurationClassToRead == null)
 				throw new IllegalArgumentException("Class to read cannot be null");
 
-			MetaDataCollector metaDataCollector = MetaDataCollector.of(configurationClassToRead);
+			MetaDataCollector metaDataCollector = collectorFactory.create(configurationClassToRead);
 
 			Object configurationInstance = readerFactory.getInstanceOf(metaDataCollector.getReader()).read(configurationClassToRead);
 			
@@ -109,13 +112,13 @@ public class ConfigurationContext {
 	}
 
 	public void injectRequiredDependencies(Object configurationInstance,MetaDataCollector metaDataCollector) throws ReadConfigurationException, IllegalAccessException {
-		for(Field field : metaDataCollector.getRequiredConfigurations()){
+		for(Field field : metaDataCollector.getDependencies()){
 			injectDependency(configurationInstance, field);
 		}
 	}
 	
 	private void injectOptionallyRequiredDependencies(Object configurationInstance, MetaDataCollector metaDataCollector) throws IllegalArgumentException, ReadConfigurationException, IllegalAccessException, InvocationTargetException {
-		for(Field field : metaDataCollector.getOptionallyRequiredConfigurations()){
+		for(Field field : metaDataCollector.getOptionalDependencies()){
 			try{
 				injectDependency(configurationInstance, field);
 			}catch (ReadConfigurationException ex) {
