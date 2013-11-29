@@ -8,6 +8,7 @@
   <offline/>
   <pluginGroups>
     <pluginGroup>org.jacoco</pluginGroup>
+    <pluginGroup>org.pitest</pluginGroup>
   </pluginGroups>
   <servers/>
   <mirrors/>
