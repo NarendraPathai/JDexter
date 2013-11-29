@@ -20,4 +20,6 @@ public interface MetaDataCollector {
 
 	public Set<Field> getConditionalConfigurations();
 
+	public Set<Field> getDependenciesForConditionalConfiguration(Field field);
+
 }

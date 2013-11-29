@@ -25,15 +25,13 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
+  
 
 //TODO Reader class is inner class with non static
 //TODO PostRead should not be called when pre read throws an exception
 //TODO what happens when an non optional is dependent on an optional configuration? Is that feasible?
 //TODO when optional configuration reading fails in read call for first time, the context again tries to read it on consecutive calls to read.
-//TODO the test cases for optionally depends, dependency will remain null if context fails to read it
 //TODO ordering when a conditional dependency is dependent on other conditional dependency
-//TODO an optional dependency which may fail while reading should not throw exception and eat it away
 
 public class ConfigurationContextUnitTest {
 
@@ -179,6 +177,8 @@ public class ConfigurationContextUnitTest {
 	@Test
 	public void testRead_ShouldSkipExceptionWhenErrorInReadingOptionalDependency() throws ReadConfigurationException{
 		configurationContext.read(TestOptionalDependencyWhichThrowsCheckedException.class);
+		configurationContext.read(TestOptionalDependencyWhichThrowsUnCheckedException.class);
+		configurationContext.read(TestOptionalDependencyWhichThrowsError.class);
 	}
 	
 	@Test
@@ -305,7 +305,7 @@ public class ConfigurationContextUnitTest {
 				{TestCompositeConfigurationDecisionMethodThrowingCheckedException.class,		Exception.class},
 				{TestCompositeConfigurationDecisionMethodThrowingUncheckedException.class,		RuntimeException.class},
 				{TestCompositeConfigurationDecisionMethodThrowingError.class,					Error.class},
-				{TestCompositeConfigurationWhoseInnerConfigruationThrowsCheckedException.class, Exception.class}
+				{TestCompositeConfigurationWhoseInnerConfigruationThrowsCheckedException.class, Exception.class},
 		};
 	}
 
@@ -360,6 +360,32 @@ public class ConfigurationContextUnitTest {
 	@Configuration(readWith = TestReader.class)
 	public static class TestOptionalDependencyWhichThrowsCheckedException{
 		@Depends @Optional private TestConfigurationClassWithPostLifeCycleMethodThrowsCheckedException dependency;
+		
+		public boolean postReadCalled = false;
+		
+		@PostRead
+		public void postRead(){
+			postReadCalled = true;
+			assertNull(dependency);
+		}
+	}
+	
+	@Configuration(readWith = TestReader.class)
+	public static class TestOptionalDependencyWhichThrowsUnCheckedException{
+		@Depends @Optional private TestConfigurationClassWithPostLifeCycleMethodThrowsUncheckedException dependency;
+		
+		public boolean postReadCalled = false;
+		
+		@PostRead
+		public void postRead(){
+			postReadCalled = true;
+			assertNull(dependency);
+		}
+	}
+	
+	@Configuration(readWith = TestReader.class)
+	public static class TestOptionalDependencyWhichThrowsError{
+		@Depends @Optional private TestConfigurationClassWithPostLifeCycleMethodThrowsError dependency;
 		
 		public boolean postReadCalled = false;
 		
@@ -887,6 +913,14 @@ public class ConfigurationContextUnitTest {
 		
 	}
 	
+	
+	@Test
+	public void testRead_ConditionalDependenciesShouldBeInjected_WhenAnotherConditionalIsDependentOnIt() throws ReadConfigurationException{
+		configurationContext.read(TestConfigurationWithConditionalDependentOnOtherConditional.class);
+		configurationContext.read(TestConfigurationWithConditionalDependentOnOtherConditional1.class);
+		configurationContext.read(TestConfigurationWithConditionalDependentOnOtherConditional2.class);
+	}
+	
 	@Configuration
 	public static class MainConfiguration{
 		
@@ -905,4 +939,97 @@ public class ConfigurationContextUnitTest {
 		}
 		
 	}
+	
+	
+	@Configuration
+	public static class TestConfigurationWithConditionalDependentOnOtherConditional{
+		
+		@Configuration private ServiceConfiguration sc;
+		@Configuration @Conditional private SomeServiceConfiguration ssc;
+		@Configuration @Conditional(dependsOn = {"ssc"}) private ServiceConfiguration ssc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			if(config.isAssignableFrom(SomeServiceConfiguration.class)){
+				//if the ordering was honored then ssc1 should be null
+				assertNull(ssc1, "ssc1 MUST be null, as ssc1 has provided conditional dependency on ssc, which should order ssc to be read before ssc1");
+				return true; //true decision for ssc
+			}else if(config.isAssignableFrom(ServiceConfiguration.class)){
+				//Here checking for non nullability as true decision is given for ssc
+				assertNotNull(ssc, "ssc MUST not be null here, as ssc1 is dependent on ssc and true decision is given for ssc reading. Ordering MUST be honored");
+				return true;
+			}else{
+				throw new IllegalStateException("This branch MUST not be hit");
+			}
+		}
+		
+		@PostRead
+		public void verify(){
+			assertNotNull(sc);
+			assertNotNull(ssc);
+			assertNotNull(ssc1);
+		}
+	}
+	
+	@Configuration
+	public static class TestConfigurationWithConditionalDependentOnOtherConditional1{
+		
+		@Configuration private ServiceConfiguration sc;
+		@Configuration @Conditional private SomeServiceConfiguration ssc;
+		@Configuration @Conditional(dependsOn = {"ssc"}) private ServiceConfiguration ssc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			if(config.isAssignableFrom(SomeServiceConfiguration.class)){
+				//if the ordering was honored then ssc1 should be null
+				assertNull(ssc1, "ssc1 MUST be null, as ssc1 has provided conditional dependency on ssc, which should order ssc to be read before ssc1");
+				return true; //true decision for ssc
+			}else if(config.isAssignableFrom(ServiceConfiguration.class)){
+				//Here checking for non nullability as true decision is given for ssc
+				assertNotNull(ssc, "ssc MUST not be null here, as ssc1 is dependent on ssc and true decision is given for ssc reading. Ordering MUST be honored");
+				return false;
+			}else{
+				throw new IllegalStateException("This branch MUST not be hit");
+			}
+		}
+		
+		@PostRead
+		public void verify(){
+			assertNotNull(sc);
+			assertNotNull(ssc);
+			assertNull(ssc1);
+		}
+	}
+	
+	
+	@Configuration
+	public static class TestConfigurationWithConditionalDependentOnOtherConditional2{
+		
+		@Configuration private ServiceConfiguration sc;
+		@Configuration @Conditional private SomeServiceConfiguration ssc;
+		@Configuration @Conditional(dependsOn = {"ssc"}) private ServiceConfiguration ssc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			if(config.isAssignableFrom(SomeServiceConfiguration.class)){
+				//if the ordering was honored then ssc1 should be null
+				assertNull(ssc1, "ssc1 MUST be null, as ssc1 has provided conditional dependency on ssc, which should order ssc to be read before ssc1");
+				return false; //true decision for ssc
+			}else if(config.isAssignableFrom(ServiceConfiguration.class)){
+				//Here checking for non nullability as true decision is given for ssc
+				assertNull(ssc, "ssc MUST not be null here, as ssc1 is dependent on ssc and true decision is given for ssc reading. Ordering MUST be honored");
+				return false;
+			}else{
+				throw new IllegalStateException("This branch MUST not be hit");
+			}
+		}
+		
+		@PostRead
+		public void verify(){
+			assertNotNull(sc);
+			assertNull(ssc);
+			assertNull(ssc1);
+		}
+	}
+	
 }

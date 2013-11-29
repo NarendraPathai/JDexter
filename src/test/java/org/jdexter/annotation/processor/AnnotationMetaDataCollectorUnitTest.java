@@ -3,6 +3,8 @@ package org.jdexter.annotation.processor;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.fail;
 
 import java.lang.reflect.Field;
 import java.util.Iterator;
@@ -14,11 +16,14 @@ import org.jdexter.annotation.Decision;
 import org.jdexter.annotation.Depends;
 import org.jdexter.annotation.Optional;
 import org.jdexter.context.ConfigurationContextUnitTest.MainConfiguration;
+import org.jdexter.context.ConfigurationContextUnitTest.ServiceConfiguration;
+import org.jdexter.context.ConfigurationContextUnitTest.SomeServiceConfiguration;
 import org.jdexter.context.ConfigurationContextUnitTest.TestCompositeConfigurationWithOneOptionalDependencies;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClass;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClass1;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClassWithNoReaderSpecified;
 import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationClassWithoutConfigurationProperties;
+import org.jdexter.context.ConfigurationContextUnitTest.TestConfigurationWithConditionalDependentOnOtherConditional;
 import org.jdexter.context.ConfigurationContextUnitTest.TestReader;
 import org.jdexter.context.ConfigurationContextUnitTest.TestRequiresDependency;
 import org.jdexter.reader.DefaultReader;
@@ -174,7 +179,7 @@ public class AnnotationMetaDataCollectorUnitTest {
 	}
 	
 	@Test
-	public void testOf_ShouldReturnSetOfConditionalInnerConfigurationsForCompositeConfigurationClass(){
+	public void testOf_ShouldReturnSetOfConditionalInnerConfigurationsForCompositeConfigurationClass() throws InstantiationException, IllegalAccessException{
 		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationClass.class);
 		assertEquals(mdc.getConditionalConfigurations().size(), 0);
 		
@@ -182,7 +187,18 @@ public class AnnotationMetaDataCollectorUnitTest {
 		assertEquals(mdc.getConditionalConfigurations().size(), 1);
 	}
 	
+	@Test(expectedExceptions = {IllegalArgumentException.class})
+	public void testOf_ShouldThrowIllegalArgumentException_WhenConditionalAnnotationOnConditionalFields() throws SecurityException, NoSuchFieldException{
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(MainConfiguration.class);
+		mdc.getDependenciesForConditionalConfiguration(MainConfiguration.class.getDeclaredField("sc"));
+	}
 	
+	@Test
+	public void testOf_ShouldReadConditionalAnnotationOnConditionalFields() throws SecurityException, NoSuchFieldException{
+		MetaDataCollector mdc = AnnotationMetaDataCollector.of(TestConfigurationWithConditionalDependentOnOtherConditional.class);
+		Set<Field> dependsOn = mdc.getDependenciesForConditionalConfiguration(TestConfigurationWithConditionalDependentOnOtherConditional.class.getDeclaredField("ssc1"));
+		assertEquals(dependsOn.size(), 1);
+	}
 	
 	@DataProvider 
 	public static Object[][] dataFor_testOf_ShouldThrowIllegalArgumentException_WhenDependenciesAreNotProperlyStated(){
@@ -281,4 +297,40 @@ public class AnnotationMetaDataCollectorUnitTest {
 	public static class TestRequiresDependencyWithDefaultAccess{
 		@Depends TestConfigurationClass dependency;
 	}
+	
+	@Test(expectedExceptions = {IllegalArgumentException.class})
+	public void testOf_ShouldThrowIllegalArgumentException_WhenConditionalIsDependentOnUnConditional(){
+		AnnotationMetaDataCollector.of(TestConfigurationWithConditionalDependentOnNonConditional.class);
+	}
+	
+	@Test(expectedExceptions = {IllegalArgumentException.class})
+	public void testOf_ShouldThrowIllegalArgumentException_WhenConditionalIsDependentOnItself(){
+		AnnotationMetaDataCollector.of(TestConfigurationWithConditionalDependentOnItself.class);
+	}
+	
+	@Configuration
+	public static class TestConfigurationWithConditionalDependentOnNonConditional{
+		
+		@Configuration private ServiceConfiguration sc;
+		@Configuration @Conditional(dependsOn = {"sc"}) private ServiceConfiguration ssc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			fail("Should not be called");
+			return false;
+		}
+		
+	}
+	
+	@Configuration
+	public static class TestConfigurationWithConditionalDependentOnItself{
+		@Configuration @Conditional(dependsOn = {"ssc1"}) private ServiceConfiguration ssc1;
+		
+		@Decision
+		public boolean decision(Class<?> config){
+			fail("Should not be called");
+			return false;
+		}
+	}
+	
 }

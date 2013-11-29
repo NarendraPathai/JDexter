@@ -5,7 +5,9 @@ import static org.jdexter.util.ReflectionUtil.invokeLifeCycleEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.jdexter.annotation.PostRead;
@@ -18,6 +20,7 @@ import org.jdexter.reader.exception.ReaderInstantiationException;
 import org.jdexter.util.ReflectionUtil;
 
 //TODO on a second thought I think it won't be advisable to catch all the throwable.
+//TODO Run time exceptions such as NPE and all should not be caught by context and should be allowed to bubble up
 public class ConfigurationContext {
 	
 	private CachingAnnotationMetaDataCollectorFactory collectorFactory;
@@ -75,14 +78,35 @@ public class ConfigurationContext {
 			injectFieldForcefully(configurationInstance, field, innerConfiguration);
 		}
 		
+		Set<Field> alreadyReadFields = new HashSet<Field>();
 		for(Field field : metaDataCollector.getConditionalConfigurations()){
-			if(!decision(metaDataCollector, configurationInstance, field)){
-				continue;
-			}
 			
-			Object innerConfiguration = read(field.getType());
-			injectFieldForcefully(configurationInstance, field, innerConfiguration);
+			if(alreadyReadFields.contains(field))
+				continue;
+			
+			Set<Field> dependenciesOfConditionalConfiguration = metaDataCollector.getDependenciesForConditionalConfiguration(field);
+			
+			for(Field dependencyOfConditionalConfiguration : dependenciesOfConditionalConfiguration){
+				boolean read = readConditionally(metaDataCollector, configurationInstance, dependencyOfConditionalConfiguration);
+				
+				if(read){
+					alreadyReadFields.add(dependencyOfConditionalConfiguration);
+				}
+			}
+			readConditionally(metaDataCollector, configurationInstance, field);
 		}
+	}
+
+	private boolean readConditionally(MetaDataCollector metaDataCollector,Object configurationInstance, Field dependencyOfConditionalConfiguration) throws IllegalAccessException, InvocationTargetException, ReadConfigurationException {
+		boolean result = false;
+		
+		if(decision(metaDataCollector, configurationInstance, dependencyOfConditionalConfiguration)){
+			Object instance = read(dependencyOfConditionalConfiguration.getType());
+			injectFieldForcefully(configurationInstance, dependencyOfConditionalConfiguration, instance);
+			result = true;
+		}
+		
+		return result;
 	}
 
 	private boolean isSaved(Class<?> configurationClassToRead){

@@ -26,6 +26,7 @@ public final class UtilityClassStandardTest {
 	public static Object[][] dataFor_UtilityClassStandardTest(){
 		return new Object[][]{
 				{ReflectionUtil.class},
+				{Maps.class}
 		};
 	}
 	
